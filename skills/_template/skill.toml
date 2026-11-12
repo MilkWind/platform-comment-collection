@@ -1,0 +1,7 @@
+[platform]
+id = "example"
+module = "examplecrawl"
+name_en = "Example Platform"
+name_zh = "示例平台"
+order = 900
+enabled = false

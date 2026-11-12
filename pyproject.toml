@@ -1,0 +1,39 @@
+[project]
+name = "platform-comment-collection"
+version = "0.1.0"
+description = "Collect comments and danmaku from video platforms (Bilibili first) through copyable core APIs, a bundled skill, and a unified Streamlit UI."
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.12,<3.15"
+dependencies = [
+    "requests>=2.31",
+    "protobuf>=7.35,<8",
+    "streamlit>=1.40",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8",
+    "ruff>=0.6",
+    "grpcio-tools>=1.85",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+markers = ["live: network smoke tests (opt-in via --live)"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+ignore = ["E501"]  # prose-heavy UI strings and SQL-free long literals; ruff format wraps code
+
+[tool.ruff.lint.per-file-ignores]
+"skills/*/core/*/proto/*_pb2.py" = ["E501", "F401", "I001"]  # generated
+
+[tool.ruff.format]
+quote-style = "double"
+

@@ -1,0 +1,24 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.coverage
+
+# Output data
+/output/
+*.jsonl.bak
+*.zip
+
+# Local credentials
+cookie.txt
+bilicookie.txt
+*.cookie
+
+# Editor / OS
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db

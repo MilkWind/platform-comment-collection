@@ -1,0 +1,4 @@
+# Dependencies for using core/bilicrawl/ on its own.
+# Copy this file alongside core/bilicrawl/ into your project.
+requests>=2.31
+protobuf>=7.35,<8
