@@ -8,7 +8,7 @@
 
 同一个项目，同一份源码，三种用法：
 
-1. **内置界面（推荐新手）** —— 本地网页应用：选择平台 → 粘贴视频链接 →（可选）一键获取 Cookie → 勾选字段 → 开始采集 → 查看进度与日志 → 下载结果。
+1. **内置界面（推荐新手）** —— 本地网页应用：选择平台 → 粘贴**一条或多条**视频链接（每行一个）→（可选）一键获取 Cookie → 勾选字段 → 解析视频信息 → 勾选要采的条目 → 开始采集 → 查看进度与日志 → 下载结果（单条就是批量中的一条）。
 2. **Skill（面向 AI Agent）** —— `skills/bilibili/` 是自包含的技能目录，Agent 可加载 `SKILL.md` 按流程操作。
 3. **复制核心** —— 直接把 `skills/bilibili/core/bilicrawl/` 整个文件夹拷进你自己的项目，调用核心 API 即可。它只依赖标准库 + `requests` + `protobuf`。
 
@@ -24,8 +24,9 @@ uv sync
 # 1) 内置网页界面
 uv run streamlit run app/streamlit_app.py
 
-# 2) 命令行无界面采集
-uv run python examples/run_engine_headless.py BV1GJ411x7h7 --max-roots 40
+# 2) 命令行无界面采集（可传多条，或用 --file 指定每行一条的清单）
+uv run python examples/run_engine_headless.py BV1GJ411x7h7 BV1xxxxxxxxx --max-roots 40
+uv run python examples/run_engine_headless.py --file videos.txt
 
 # 3) 只用核心 API 的示例
 uv run python skills/bilibili/examples/quickstart.py BV1GJ411x7h7
@@ -62,7 +63,11 @@ output/bilibili/<BV号>/
 ├── danmaku.csv  / danmaku.jsonl
 ├── meta.json
 └── checkpoint.json
+output/bilibili/batch-<时间戳>.json   # 批量清单（逐项状态/计数/输出目录）
+output/bilibili/batch-<时间戳>.zip    # 本次批量所有视频的合并压缩包
 ```
+
+批量按顺序执行：一次只采一个视频，视频之间按速度预设插入随机间隔；`checkpoint.json` 标记为已完成的视频默认跳过。
 
 CSV 使用 `utf-8-sig` 编码，Excel 可直接正确显示中文。
 

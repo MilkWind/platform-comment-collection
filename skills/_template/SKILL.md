@@ -34,6 +34,9 @@ platform tab.
 
 ## Guideline
 
+Batch runs (several videos, one at a time) are driven by `app/engine/batch.py`;
+the core stays single-video and single-request.
+
 Keep the core pure: one request per call, no sleeping or retrying. Put all
 policy in `references/strategies.md` so the outer engine can implement it. The
 UI tab appears automatically once `enabled = true`.

@@ -163,3 +163,36 @@ def test_cancel_emits_event(tmp_path: Path):
     events = _run(job)
     assert any(e.kind == "cancelled" for e in events)
     assert job.result is None
+
+
+def test_run_blocking_returns_outcome_and_forwards_events(tmp_path: Path):
+    seen: list[str] = []
+    job = CrawlJob(_request(tmp_path), on_event=lambda e: seen.append(e.kind))
+    outcome = job.run_blocking()
+
+    assert outcome.status == "done"
+    assert outcome.result is not None and outcome.result["counts"]["comments"] == 6
+    assert job.outcome is outcome
+    assert "progress" in seen and "done" in seen
+    try:
+        job.run_blocking()
+    except RuntimeError:
+        pass
+    else:  # pragma: no cover - the guard must fire
+        raise AssertionError("run_blocking must be single-use")
+
+
+def test_outcome_reports_error_kind(tmp_path: Path):
+    from bilicrawl.errors import NotFound
+
+    def factory(_creds):
+        adapter = FakeAdapter()
+        adapter.resolve_video = lambda raw: (_ for _ in ()).throw(NotFound("missing"))
+        return adapter
+
+    request = _request(tmp_path)
+    request.adapter_factory = factory
+    outcome = CrawlJob(request).run_blocking()
+
+    assert outcome.status == "error"
+    assert outcome.error_kind == "not_found"

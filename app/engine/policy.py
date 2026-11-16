@@ -28,6 +28,15 @@ _BASE_INTERVALS: dict[str, tuple[float, float]] = {
 # Multipliers applied to the base intervals by each preset.
 _SCALE = {"safe": 2.0, "balanced": 1.0, "fast": 0.45}
 
+# Pause between two videos in a batch (seconds). Scales with the preset, not
+# with per-request pacing: one video finishing is not a request, but starting
+# the next one immediately is exactly the burst pattern risk control watches.
+_VIDEO_GAP: dict[str, tuple[float, float]] = {
+    "safe": (2.5, 5.0),
+    "balanced": (1.2, 2.5),
+    "fast": (0.5, 1.2),
+}
+
 
 @dataclass(frozen=True)
 class Decision:
@@ -52,6 +61,10 @@ class Policies:
 
     def interval(self, kind: str) -> tuple[float, float]:
         return self.intervals.get(kind, (0.0, 0.0))
+
+    def video_gap(self) -> tuple[float, float]:
+        """Random pause range between two videos of one batch."""
+        return _VIDEO_GAP.get(self.preset, _VIDEO_GAP["balanced"])
 
 
 def classify(exc: Exception) -> Decision:

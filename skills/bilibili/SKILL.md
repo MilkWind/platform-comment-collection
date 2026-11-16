@@ -25,6 +25,11 @@ the caller (the bundled app's engine, or you).
 
 ## Workflow
 
+Multiple links are processed one after another with the same strategies. The
+batch loop lives in the app (`app/engine/batch.py`); the core still resolves,
+pages and fetches one video at a time. Pause between videos per
+`references/strategies.md` §1b.
+
 ### Step 1 — Obtain a cookie (optional)
 
 Show the user the console snippet in

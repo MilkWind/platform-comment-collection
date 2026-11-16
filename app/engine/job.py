@@ -11,8 +11,10 @@ import queue
 import threading
 import time
 import traceback
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Literal
 
 from . import checkpoint as ckpt
 from . import output
@@ -21,6 +23,22 @@ from .policy import Policies, Policy
 from .progress import Event
 
 CHECKPOINT_EVERY_ROOTS = 5
+
+
+@dataclass(frozen=True)
+class CrawlOutcome:
+    """Authoritative result of one video's crawl.
+
+    ``_run`` turns every exception into an event, so callers cannot tell success
+    from failure by looking at events alone. The outcome is the contract the
+    batch supervisor uses to decide "continue / abort / stop".
+    """
+
+    status: Literal["done", "error", "cancelled"]
+    result: dict | None = None
+    error: str | None = None
+    error_kind: str | None = None
+    traceback: str | None = None
 
 
 @dataclass
@@ -45,31 +63,38 @@ class CrawlRequest:
     options: CrawlOptions
     adapter_factory: object  # callable(credentials) -> adapter
     resume: bool = True
+    verify_credentials: bool = True
 
 
-class CrawlJob:
-    def __init__(self, request: CrawlRequest) -> None:
-        self.id = f"job-{int(time.time() * 1000)}"
-        self.request = request
+class EventJob:
+    """Event queue, cancellation and liveness shared by every job kind.
+
+    Kept Streamlit-free so the UI can drain it on the script thread while the
+    worker runs. ``on_event`` is an extra synchronous hook (the batch
+    supervisor uses it to forward a sub-job's events without polling).
+    """
+
+    def __init__(
+        self,
+        *,
+        cancel_event: threading.Event | None = None,
+        on_event: Callable[[Event], None] | None = None,
+    ) -> None:
         self.events: queue.Queue[Event] = queue.Queue()
-        self.cancel_event = threading.Event()
+        self.cancel_event = cancel_event or threading.Event()
+        self._on_event = on_event
+        self._latest_progress: Event | None = None
         self._thread: threading.Thread | None = None
-        self._emitted: list[Event] = []
-        self.result: dict | None = None
-
-    def start(self) -> None:
-        self._thread = threading.Thread(target=self._crawl, name=self.id, daemon=True)
-        self._thread.start()
-
-    def cancel(self) -> None:
-        self.cancel_event.set()
-
-    def is_running(self) -> bool:
-        return self._thread is not None and self._thread.is_alive()
 
     def emit(self, event: Event) -> None:
-        self._emitted.append(event)
+        if event.kind == "progress":
+            self._latest_progress = event
         self.events.put(event)
+        if self._on_event is not None:
+            try:
+                self._on_event(event)
+            except Exception:  # noqa: BLE001 - a listener must never kill the worker
+                pass
 
     def drain(self) -> list[Event]:
         drained: list[Event] = []
@@ -77,30 +102,74 @@ class CrawlJob:
             try:
                 drained.append(self.events.get_nowait())
             except queue.Empty:
-                break
-        return drained
+                return drained
 
     def latest_progress(self) -> Event | None:
         """Most recent progress event (for rendering a progress bar)."""
-        for event in reversed(self._emitted):
-            if event.kind == "progress":
-                return event
-        return None
+        return self._latest_progress
 
-    def _crawl(self) -> None:
+    def is_running(self) -> bool:
+        return self._thread is not None and self._thread.is_alive()
+
+    def cancel(self) -> None:
+        self.cancel_event.set()
+
+
+class CrawlJob(EventJob):
+    def __init__(
+        self,
+        request: CrawlRequest,
+        *,
+        cancel_event: threading.Event | None = None,
+        on_event: Callable[[Event], None] | None = None,
+    ) -> None:
+        super().__init__(cancel_event=cancel_event, on_event=on_event)
+        self.id = f"job-{int(time.time() * 1000)}"
+        self.request = request
+        self.outcome: CrawlOutcome | None = None
+        self.result: dict | None = None
+
+    def start(self) -> None:
+        self._thread = threading.Thread(target=self._run, name=self.id, daemon=True)
+        self._thread.start()
+
+    def run_blocking(self) -> CrawlOutcome:
+        """Run this crawl in the calling thread and return its outcome.
+
+        Used by the batch supervisor so sub-jobs do not spawn a second thread
+        layer; a job is single-use, so a second call is a programming error.
+        """
+        if self.outcome is not None:
+            raise RuntimeError("CrawlJob.run_blocking() may only be called once")
+        self._thread = threading.current_thread()  # is_running() stays truthful
+        self._run()
+        assert self.outcome is not None
+        return self.outcome
+
+    def _run(self) -> None:
         try:
             _Crawler(self).crawl()
         except Cancelled:
+            self.outcome = CrawlOutcome(status="cancelled", error="Cancelled")
             self.emit(Event(kind="cancelled", message="Cancelled"))
         except Exception as exc:  # noqa: BLE001 - surface every failure to the UI
+            tb = traceback.format_exc()
+            self.outcome = CrawlOutcome(
+                status="error",
+                error=str(exc),
+                error_kind=getattr(exc, "kind", None),
+                traceback=tb,
+            )
             self.emit(
                 Event(
                     kind="error",
                     message=str(exc),
                     level="error",
-                    payload={"traceback": traceback.format_exc()},
+                    payload={"traceback": tb},
                 )
             )
+        else:
+            self.outcome = CrawlOutcome(status="done", result=self.result)
 
 
 class _Crawler:
@@ -126,7 +195,7 @@ class _Crawler:
 
     # -- paths ---------------------------------------------------------------
     def out_dir(self, video_id: str) -> Path:
-        return self.opts.output_root / self.req.platform / video_id
+        return ckpt.video_out_dir(self.opts.output_root, self.req.platform, video_id)
 
     def emit_log(self, message: str, *, phase: str, level: str = "info") -> None:
         self.job.emit(Event.log(message, phase=phase, level=level))  # type: ignore[arg-type]
@@ -137,14 +206,19 @@ class _Crawler:
     # -- main ----------------------------------------------------------------
     def crawl(self) -> None:
         adapter = self.req.adapter_factory(self.req.credentials)
-        self.emit_log("Verifying credentials…", phase="auth")
-        auth = self.policy.call("verify", adapter.verify)
-        self._auth_warn(auth)
-        self.emit_log(
-            "Logged in." if auth.is_logged_in else "Anonymous mode.",
-            phase="auth",
-            level="info" if auth.is_logged_in else "warn",
-        )
+        if self.req.verify_credentials:
+            self.emit_log("Verifying credentials…", phase="auth")
+            auth = self.policy.call("verify", adapter.verify)
+            self._auth_warn(auth)
+            self.emit_log(
+                "Logged in." if auth.is_logged_in else "Anonymous mode.",
+                phase="auth",
+                level="info" if auth.is_logged_in else "warn",
+            )
+        else:
+            # Batch reuses one adapter; verifying it once per video would be N
+            # extra nav requests for an answer that cannot change mid-run.
+            self.emit_log("Credentials already verified in batch.", phase="auth")
 
         self.emit_log("Resolving video…", phase="resolve")
         video = self.policy.call("resolve_video", adapter.resolve_video, self.req.raw_input)

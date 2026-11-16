@@ -7,6 +7,7 @@
 │  app/ui/          Streamlit, one generic tab per platform       │
 │  app/engine/policy.py     rate gate, backoff, classification    │
 │  app/engine/job.py        orchestration loops, events, cancel   │
+│  app/engine/batch.py      plan -> resolve -> sequential batch    │
 │  app/engine/output.py     JSONL / CSV / meta / zip              │
 │  app/engine/checkpoint.py atomic resume state                   │
 └───────────────▲─────────────────────────────────┬───────────────┘
@@ -18,9 +19,28 @@
 └──────────────────────────────────────────────────────────────────┘
 ```
 
-Data flows: **input** → `parse_input` → **resolve** → `VideoRef` (aid + parts)
+Data flows (single video): **input** → `parse_input` → **resolve** → `VideoRef` (aid + parts)
 → **comment cursor loop** (roots + sub-replies) → **danmaku segment loop** →
 **writers** (JSONL → CSV + meta + zip).
+
+## Batch layer
+
+The UI accepts a list of links. `app/engine/batch.py` is a supervisor around the
+single-video unit, not a second crawler:
+
+```
+plan_batch (offline)  ->  ResolveJob (1 resolve per item, preview table)
+                      ->  BatchJob   ->  CrawlJob per item, sequentially
+                                     ->  batch_manifest.json + batch-<ts>.zip
+```
+
+Because every item still runs a full `CrawlJob`, per-video output folders,
+checkpoints, resume and dedup are unchanged. Batch only adds: one shared
+adapter (verified once), a preset-scaled pause between videos, per-item error
+policy (`not_found` continues, `auth_expired` aborts the rest), and the
+aggregate manifest/zip. `docs/adapter-contract.md` is unchanged — batch uses
+only the methods every adapter already has, so adding a platform still needs no
+`app/` edits.
 
 ## Why strategy is not in the core
 

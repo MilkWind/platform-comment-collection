@@ -13,9 +13,8 @@ from pathlib import Path
 
 import streamlit as st
 
-from app.engine.job import CrawlJob, CrawlOptions, CrawlRequest
-from app.engine.policy import Policies
 from app.ui import jobs
+from app.ui.batch_panel import render_batch_panel
 from app.ui.i18n import label, t
 from app.ui.registry import PlatformEntry
 
@@ -30,16 +29,6 @@ def _state_key(entry: PlatformEntry, name: str) -> str:
 def render_platform_tab(entry: PlatformEntry, locale: str, output_root: Path) -> None:
     module = entry.module
     active = jobs.is_active()  # only while a job is actually running
-
-    raw_input = st.text_input(
-        t(locale, "input_label"),
-        key=_state_key(entry, "input"),
-        placeholder=t(locale, "input_placeholder"),
-        disabled=active,
-    )
-    parsed = module.parse_input(raw_input) if raw_input else None
-    if raw_input and parsed is not None and not parsed.ok:
-        st.warning(t(locale, "input_invalid"))
 
     for field in module.credential_fields():
         with st.expander(label(locale, field.label_en, field.label_zh), expanded=False):
@@ -112,70 +101,22 @@ def render_platform_tab(entry: PlatformEntry, locale: str, output_root: Path) ->
             key=_state_key(entry, "max_roots"),
         )
 
-    disabled = active or not (collect_comments or collect_danmaku) or not raw_input
-    if st.button(
-        t(locale, "start"),
-        type="primary",
-        disabled=disabled,
-        key=_state_key(entry, "start"),
-        use_container_width=True,
-    ):
-        _start(
-            entry,
-            module,
-            locale,
-            raw_input,
-            collect_comments,
-            collect_sub,
-            collect_danmaku,
-            mode,
-            comment_fields,
-            danmaku_fields,
-            preset,
-            int(max_roots),
-            output_root,
-        )
-
-
-def _start(
-    entry,
-    module,
-    locale,
-    raw_input,
-    collect_comments,
-    collect_sub,
-    collect_danmaku,
-    mode,
-    comment_fields,
-    danmaku_fields,
-    preset,
-    max_roots,
-    output_root,
-) -> None:
-    credentials = {
-        field.key: st.session_state.get(_state_key(entry, f"cred_{field.key}"), "") or ""
-        for field in module.credential_fields()
-    }
-    options = CrawlOptions(
+    st.divider()
+    st.subheader(t(locale, "input_label_batch"))
+    render_batch_panel(
+        entry,
+        locale,
+        active,
         collect_comments=collect_comments,
-        collect_sub_replies=collect_sub,
+        collect_sub=collect_sub,
         collect_danmaku=collect_danmaku,
         mode=mode,
         comment_fields=comment_fields,
         danmaku_fields=danmaku_fields,
-        policies=Policies.for_preset(preset),
+        preset=preset,
+        max_roots=int(max_roots),
         output_root=output_root,
-        max_roots=max_roots or None,
     )
-    request = CrawlRequest(
-        platform=entry.id,
-        raw_input=raw_input.strip(),
-        credentials=credentials,
-        options=options,
-        adapter_factory=module.create_adapter,
-    )
-    jobs.start_job(CrawlJob(request))
-    st.rerun()
 
 
 def _field_checkboxes(entry, module, kind: str, locale: str, active: bool) -> list[str]:

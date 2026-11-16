@@ -64,6 +64,20 @@ def path_for(out_dir: Path) -> Path:
     return out_dir / "checkpoint.json"
 
 
+def video_out_dir(output_root: Path, platform: str, video_id: str) -> Path:
+    """Canonical per-video output folder.
+
+    Single-video runs and batch items must agree on this rule, otherwise
+    "skip completed" would look in a different place than the crawl writes.
+    """
+    return output_root / platform / video_id
+
+
+def is_video_complete(output_root: Path, platform: str, video_id: str) -> bool:
+    checkpoint = load(video_out_dir(output_root, platform, video_id))
+    return bool(checkpoint and checkpoint.completed)
+
+
 def save(out_dir: Path, checkpoint: Checkpoint) -> None:
     out_dir.mkdir(parents=True, exist_ok=True)
     target = path_for(out_dir)

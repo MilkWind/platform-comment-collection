@@ -8,7 +8,7 @@ A **mini but useful**, plug-in-style tool to collect video **comments** and **da
 
 One project, one source of truth, three consumption modes:
 
-1. **Built-in UI (beginner-friendly)** — a local web app: pick a platform → paste a video link → (optionally) grab a cookie with one click → choose fields → start → watch progress and logs → download results.
+1. **Built-in UI (beginner-friendly)** — a local web app: pick a platform → paste **one or more** video links (one per line) → (optionally) grab a cookie with one click → choose fields → resolve video info → tick the rows to collect → start → watch progress and logs → download results (a single link is just a batch of one).
 2. **Skill (for AI agents)** — `skills/bilibili/` is a self-contained skill directory; an agent loads `SKILL.md` and follows the workflow.
 3. **Copy the core** — drop `skills/bilibili/core/bilicrawl/` into your own project and call the core APIs. It depends only on the standard library + `requests` + `protobuf`.
 
@@ -24,8 +24,9 @@ uv sync
 # 1) Built-in web UI
 uv run streamlit run app/streamlit_app.py
 
-# 2) Headless batch run
-uv run python examples/run_engine_headless.py BV1GJ411x7h7 --max-roots 40
+# 2) Headless run (several inputs, or --file with one per line)
+uv run python examples/run_engine_headless.py BV1GJ411x7h7 BV1xxxxxxxxx --max-roots 40
+uv run python examples/run_engine_headless.py --file videos.txt
 
 # 3) Core-only example
 uv run python skills/bilibili/examples/quickstart.py BV1GJ411x7h7
@@ -62,7 +63,11 @@ output/bilibili/<bvid>/
 ├── danmaku.csv  / danmaku.jsonl
 ├── meta.json
 └── checkpoint.json
+output/bilibili/batch-<timestamp>.json   # per-item status/counts/out dir
+output/bilibili/batch-<timestamp>.zip    # every collected video of the run
 ```
+
+Batches run sequentially — one video at a time with a preset-scaled pause between videos — and videos already marked complete in `checkpoint.json` are skipped by default.
 
 CSV files use `utf-8-sig` so Excel displays Chinese correctly.
 

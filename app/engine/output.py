@@ -10,6 +10,7 @@ from __future__ import annotations
 import csv
 import json
 import zipfile
+from collections.abc import Sequence
 from dataclasses import asdict
 from pathlib import Path
 
@@ -94,6 +95,33 @@ def zip_dir(path: Path, *, files: list[Path] | None = None) -> Path:
         for file in targets:
             zf.write(file, arcname=file.relative_to(path))
     return archive
+
+
+def zip_batch(out_dirs: Sequence[Path], dest: Path, *, manifest: Path | None = None) -> Path:
+    """Zip several per-video folders into one archive, one prefix each.
+
+    Per-video ``*.zip`` archives already exist beside those folders; packing
+    them again would double the size for no gain, so they are skipped.
+    """
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    seen: set[str] = set()
+    with zipfile.ZipFile(dest, "w", zipfile.ZIP_DEFLATED) as zf:
+        for folder in out_dirs:
+            if not folder.is_dir():
+                continue
+            prefix = folder.name
+            if prefix in seen:  # two inputs resolved to the same folder
+                continue
+            seen.add(prefix)
+            for file in sorted(folder.rglob("*")):
+                if not file.is_file() or file.suffix == ".zip":
+                    continue
+                if file.name == "checkpoint.json":
+                    continue  # engine state, not part of the collected dataset
+                zf.write(file, arcname=f"{prefix}/{file.relative_to(folder).as_posix()}")
+        if manifest is not None and manifest.exists():
+            zf.write(manifest, arcname="batch_manifest.json")
+    return dest
 
 
 def dataclass_meta(obj) -> dict:

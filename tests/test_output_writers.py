@@ -43,3 +43,26 @@ def test_csv_is_utf8_sig_with_columns(tmp_path: Path):
 def test_meta_written(tmp_path: Path):
     path = write_meta(tmp_path / "meta.json", {"counts": {"comments": 3}})
     assert json.loads(path.read_text(encoding="utf-8"))["counts"]["comments"] == 3
+
+
+def test_zip_batch_prefixes_skips_nested_zips_and_includes_manifest(tmp_path):
+    from app.engine.output import zip_batch
+
+    a = tmp_path / "BV1"
+    b = tmp_path / "BV2"
+    (a).mkdir()
+    (b).mkdir()
+    (a / "comments.csv").write_text("id\n1\n", encoding="utf-8")
+    (a / "checkpoint.json").write_text("{}", encoding="utf-8")
+    (b / "comments.csv").write_text("id\n2\n", encoding="utf-8")
+    (b / "BV2.zip").write_bytes(b"PK")  # a per-video archive must not be re-packed
+    manifest = tmp_path / "batch.json"
+    manifest.write_text("{}", encoding="utf-8")
+
+    archive = zip_batch([a, b], tmp_path / "out.zip", manifest=manifest)
+
+    import zipfile
+
+    with zipfile.ZipFile(archive) as zf:
+        names = sorted(zf.namelist())
+    assert names == ["BV1/comments.csv", "BV2/comments.csv", "batch_manifest.json"]

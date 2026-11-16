@@ -16,6 +16,21 @@ sleeps, retries, or writes files; everything below belongs to the caller.
   raise concurrency, add a global semaphore and raise delays.
 - Never sleep inside the core.
 
+## 1b. Multiple videos (batch)
+
+- One video in flight, always. After a video completes, wait a randomized gap
+  before starting the next: safe 2.5–5s, balanced 1.2–2.5s, fast 0.5–1.2s
+  (`Policies.video_gap`). A finished video is not a request, but starting the
+  next one immediately is exactly the burst pattern risk control watches.
+- Verify credentials once per batch and share one adapter/session; re-verifying
+  per video adds N nav requests for an answer that cannot change mid-run.
+- Per-item error policy: `not_found` fails that item and continues;
+  `auth_expired` aborts the remaining items (they would all fail);
+  `risk_control`/`transient` get an extra cool-down before the next item.
+- Skip items whose `checkpoint.json` says `completed` unless the user opts in
+  to a re-collect. The canonicalize-to-video-id step in `plan_batch` keeps
+  checkpoint matching stable across URL forms of the same video.
+
 ## 2. Retry and error classification
 
 - Classify by the error's `kind`/`retryable` attributes (duck-typed).
