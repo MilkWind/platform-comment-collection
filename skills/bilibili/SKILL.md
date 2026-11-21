@@ -1,5 +1,5 @@
 ---
-name: bilibili-comment-danmaku
+name: bilibili
 description: Collect Bilibili (B站) video comments (with sub-replies) and danmaku (弹幕) given a BV id or video URL. Use when a user asks to scrape, download, archive, or analyze Bilibili comments/danmaku, or references a bilibili.com / b23.tv video link.
 ---
 
@@ -11,12 +11,30 @@ checkpointing, deduplication, multi-P handling — are documented in
 [`references/strategies.md`](references/strategies.md) and are implemented by
 the caller (the bundled app's engine, or you).
 
+## Install this skill
+
+This repository publishes the skill at `skills/bilibili/`, so the generic
+installer can fetch it:
+
+```bash
+npx skills@latest add MilkWind/platform-comment-collection --skill bilibili
+```
+
+Installed this way, the skill folder (with `core/`, `references/`, `examples/`,
+`scripts/`) lands in your agent's skills directory, and `requirements.txt` is
+next to this file — that makes the relative paths below valid. Copy the skill
+folder into your own project to use it there.
+
 ## Prerequisites
 
 - Python ≥ 3.12
 - `pip install -r requirements.txt` (only `requests` and `protobuf`)
 - A cookie is **optional**. Anonymous access works for comments and danmaku.
   Logging in unlocks `location` (IP 属地) and fuller results.
+
+Import the core by putting the installed skill's `core/` directory on
+`sys.path` — `examples/quickstart.py` shows the four lines that do it — then
+`import bilicrawl`.
 
 ## Trigger conditions
 
@@ -25,10 +43,10 @@ the caller (the bundled app's engine, or you).
 
 ## Workflow
 
-Multiple links are processed one after another with the same strategies. The
-batch loop lives in the app (`app/engine/batch.py`); the core still resolves,
-pages and fetches one video at a time. Pause between videos per
-`references/strategies.md` §1b.
+Multiple links are processed one after another with the same strategies: the
+core resolves, pages and fetches one video at a time. Pause between videos per
+`references/strategies.md` §1b. (This project's own app implements the batch
+loop in `app/engine/batch.py`; see the repository's README.)
 
 ### Step 1 — Obtain a cookie (optional)
 
@@ -120,6 +138,9 @@ library, `requests`, and `protobuf`. See
 paging loop that uses core primitives alone (no engine, no UI).
 
 ## Worked example
+
+Run from the repository root (or from the installed skill folder, using
+`examples/quickstart.py`):
 
 ```bash
 uv run python skills/bilibili/examples/quickstart.py BV1GJ411x7h7

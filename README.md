@@ -9,7 +9,7 @@
 同一个项目，同一份源码，三种用法：
 
 1. **内置界面（推荐新手）** —— 本地网页应用：选择平台 → 粘贴**一条或多条**视频链接（每行一个）→（可选）一键获取 Cookie → 勾选字段 → 解析视频信息 → 勾选要采的条目 → 开始采集 → 查看进度与日志 → 下载结果（单条就是批量中的一条）。
-2. **Skill（面向 AI Agent）** —— `skills/bilibili/` 是自包含的技能目录，Agent 可加载 `SKILL.md` 按流程操作。
+2. **Skill（面向 AI Agent）** —— `skills/bilibili/` 是自包含的技能目录；用 `npx skills` 直接装进你的 Agent，见[用 npx skills 安装](#用-npx-skills-安装)。
 3. **复制核心** —— 直接把 `skills/bilibili/core/bilicrawl/` 整个文件夹拷进你自己的项目，调用核心 API 即可。它只依赖标准库 + `requests` + `protobuf`。
 
 项目结构遵循：`{[(核心 py 文件) 技能封装] 附加界面}`。多平台时即：`{[(各平台核心) 各平台技能] 统一多标签界面}`。
@@ -32,6 +32,31 @@ uv run python examples/run_engine_headless.py --file videos.txt
 uv run python skills/bilibili/examples/quickstart.py BV1GJ411x7h7
 ```
 
+## 用 npx skills 安装
+
+需要 Node.js ≥ 22.20。
+
+```bash
+# 交互式：选技能、选 Agent（Claude Code / Codex / Cursor …）
+npx skills@latest add MilkWind/platform-comment-collection
+
+# 只装 B站技能到 Claude Code（当前项目；加 -g 装到全局）
+npx skills@latest add MilkWind/platform-comment-collection --skill bilibili -a claude-code -y
+
+# 查看仓库里有哪些技能
+npx skills@latest add MilkWind/platform-comment-collection --list
+```
+
+装好后运行示例：
+
+```bash
+cd .claude/skills/bilibili
+python -m pip install -r requirements.txt
+python examples/quickstart.py BV1GJ411x7h7
+```
+
+更新：`npx skills update`。
+
 ## 设计要点
 
 - **核心只管 API**：每个核心方法至多发起一次 HTTP 请求，不 sleep、不重试、不写文件。见 [`docs/adapter-contract.md`](docs/adapter-contract.md)。
@@ -48,7 +73,7 @@ uv run python skills/bilibili/examples/quickstart.py BV1GJ411x7h7
 ```
 app/        外层：引擎（策略实现）+ Streamlit 界面
 skills/     技能：每个平台一个目录
-  bilibili/   SKILL.md + references/ + core/bilicrawl/(可复制核心)
+  bilibili/   SKILL.md + skill.toml + references/ + core/bilicrawl/(可复制核心)
   _template/  新平台的脚手架
 docs/       适配器契约与架构说明
 scripts/    生成 protobuf、在线冒烟测试

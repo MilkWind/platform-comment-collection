@@ -56,6 +56,11 @@ the rules in `skills/<platform>/references/strategies.md`.
 - `app/ui/registry.py` discovers `skills/*/skill.toml`. Adding a manifest adds a
   tab; the tab renderer reads `credential_fields()` and `field_catalog()` so no
   UI code changes.
+- The same directories double as distribution units: `npx skills add
+  MilkWind/platform-comment-collection` installs any `skills/<name>/` that has a
+  `SKILL.md` with `name` + `description` frontmatter. Keep the frontmatter
+  `name` equal to the directory name; mark scaffolds with
+  `metadata.internal: true` so they are not published.
 - The engine loops call only contract method names, so any platform that
   implements the adapter works with the same orchestration, checkpoints, and
   writers.

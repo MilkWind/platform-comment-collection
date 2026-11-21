@@ -9,7 +9,7 @@ A **mini but useful**, plug-in-style tool to collect video **comments** and **da
 One project, one source of truth, three consumption modes:
 
 1. **Built-in UI (beginner-friendly)** — a local web app: pick a platform → paste **one or more** video links (one per line) → (optionally) grab a cookie with one click → choose fields → resolve video info → tick the rows to collect → start → watch progress and logs → download results (a single link is just a batch of one).
-2. **Skill (for AI agents)** — `skills/bilibili/` is a self-contained skill directory; an agent loads `SKILL.md` and follows the workflow.
+2. **Skill (for AI agents)** — `skills/bilibili/` is a self-contained skill directory; install it into your agent with `npx skills` — see [Install with `npx skills`](#install-with-npx-skills).
 3. **Copy the core** — drop `skills/bilibili/core/bilicrawl/` into your own project and call the core APIs. It depends only on the standard library + `requests` + `protobuf`.
 
 The structure follows `{[(core py files) wrapped in a skill] additional UI}`; with multiple platforms it becomes `{[(per-platform cores) per-platform skills] unified tabbed UI}`.
@@ -32,6 +32,31 @@ uv run python examples/run_engine_headless.py --file videos.txt
 uv run python skills/bilibili/examples/quickstart.py BV1GJ411x7h7
 ```
 
+## Install with `npx skills`
+
+Requires Node.js ≥ 22.20.
+
+```bash
+# Interactive: choose the skill and the agent (Claude Code / Codex / Cursor …)
+npx skills@latest add MilkWind/platform-comment-collection
+
+# Bilibili skill into Claude Code, current project (add -g for everywhere)
+npx skills@latest add MilkWind/platform-comment-collection --skill bilibili -a claude-code -y
+
+# List available skills
+npx skills@latest add MilkWind/platform-comment-collection --list
+```
+
+Then run the examples:
+
+```bash
+cd .claude/skills/bilibili
+python -m pip install -r requirements.txt
+python examples/quickstart.py BV1GJ411x7h7
+```
+
+Update with `npx skills update`.
+
 ## Design highlights
 
 - **Core only speaks API**: each core call makes at most one HTTP request — no sleeping, retrying, or file I/O. See [`docs/adapter-contract.md`](docs/adapter-contract.md).
@@ -48,7 +73,7 @@ On a logged-in `bilibili.com` page, open DevTools console and run the snippet in
 ```
 app/        Outer layer: engine (strategy implementation) + Streamlit UI
 skills/     Skills: one directory per platform
-  bilibili/   SKILL.md + references/ + core/bilicrawl/ (copyable core)
+  bilibili/   SKILL.md + skill.toml + references/ + core/bilicrawl/ (copyable core)
   _template/  Scaffold for a new platform
 docs/       Adapter contract and architecture notes
 scripts/    Protobuf generation, live smoke test
